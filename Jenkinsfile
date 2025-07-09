@@ -22,9 +22,14 @@ pipeline {
         }
 
         stage('Test') {
+            agent {
+                docker {
+                    image 'node:18-alpine'
+                    reuseNode true
+                }
+            }
             steps {
                 echo 'Test stage'
-                // Check if build was successful
                 sh '''
                     if test -f build/index.html; then
                         echo "index.html exists"
@@ -33,7 +38,6 @@ pipeline {
                         exit 1
                     fi
                 '''
-                // Run tests (separate shell block)
                 sh 'npm test'
             }
         }
