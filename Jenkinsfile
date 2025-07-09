@@ -24,6 +24,15 @@ pipeline {
         stage('Test') {
             steps {
                 echo 'Test stage'
+                sh '''
+                if test  -f index.html/build; then
+                    echo "index.html/build exists"
+                else 
+                    echo "not exists"
+                    exit 1
+                fi                
+
+                '''
             } 
         }
     }
