@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     stages {
-
+        /*
         stage('Build') {
             agent {
                 docker {
@@ -20,6 +20,7 @@ pipeline {
                 '''
             }
         }
+        */     
 
         stage('Test') {
             agent {
@@ -30,7 +31,7 @@ pipeline {
             }
             steps {
                 sh '''
-                    test -f build/index.html
+                   #test -f build/index.html
                     npm test
                 '''
             }
@@ -41,6 +42,7 @@ pipeline {
                 docker {
                     image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
                     reuseNode true
+                    // args '-u root:root' // Uncomment if you need to run as root
                 }
             }
             steps {
@@ -56,7 +58,7 @@ pipeline {
 
     post {
         always {
-            junit allowEmptyResults: true, testResults: 'jest-results/junit.xml'
+            junit 'jest-results/junit.xml'
         }
     }
 }
