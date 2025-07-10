@@ -2,7 +2,6 @@ pipeline {
     agent any
 
     stages {
-        /*
 
         stage('Build') {
             agent {
@@ -13,16 +12,14 @@ pipeline {
             }
             steps {
                 sh '''
-                    ls -la
                     node --version
                     npm --version
-                    npm ci
+                    npm install
                     npm run build
-                    ls -la
+                    ls -la build
                 '''
             }
         }
-        */
 
         stage('Test') {
             agent {
@@ -31,7 +28,6 @@ pipeline {
                     reuseNode true
                 }
             }
-
             steps {
                 sh '''
                     test -f build/index.html
@@ -47,7 +43,6 @@ pipeline {
                     reuseNode true
                 }
             }
-
             steps {
                 sh '''
                     npm install serve
@@ -61,7 +56,7 @@ pipeline {
 
     post {
         always {
-            junit 'jest-results/junit.xml'
+            junit allowEmptyResults: true, testResults: 'jest-results/junit.xml'
         }
     }
 }
