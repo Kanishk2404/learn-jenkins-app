@@ -8,12 +8,6 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
         stage('Build') {
             agent {
                 docker {
@@ -23,69 +17,65 @@ pipeline {
             }
             steps {
                 sh '''
-                    echo "Node version:"
+                    ls -la
                     node --version
-                    echo "NPM version:"
                     npm --version
-                    echo "Installing dependencies..."
                     npm ci
-                    echo "Running build..."
                     npm run build
+                    ls -la
                 '''
             }
         }
 
         stage('Tests') {
             parallel {
-                stage('Unit Tests') {
+                stage('Unit tests') {
                     agent {
                         docker {
                             image 'node:18-alpine'
                             reuseNode true
                         }
                     }
+
                     steps {
                         sh '''
-                            echo "Running unit tests..."
                             npm test
                         '''
                     }
                     post {
                         always {
-                            junit 'jest-results/junit.xml' // Optional: depends if using jest-junit reporter
+                            junit 'jest-results/junit.xml'
                         }
                     }
                 }
 
-                stage('E2E Tests (Local)') {
+                stage('E2E') {
                     agent {
                         docker {
                             image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
                             reuseNode true
                         }
                     }
+
                     steps {
                         sh '''
-                            echo "Installing HTTP server..."
                             npm install serve
-                            echo "Starting local server..."
                             node_modules/.bin/serve -s build &
-
-                            echo "Waiting for server..."
                             sleep 10
-
-                            echo "Running Playwright tests..."
                             npx playwright test --reporter=html
                         '''
                     }
+
                     post {
                         always {
                             publishHTML([
+                                allowMissing: false,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: false,
                                 reportDir: 'playwright-report',
                                 reportFiles: 'index.html',
                                 reportName: 'Playwright Local',
-                                allowMissing: false,
-                                keepAll: true
+                                useWrapperFileDirectly: true
                             ])
                         }
                     }
@@ -93,7 +83,7 @@ pipeline {
             }
         }
 
-        stage('Deploy to Staging') {
+        stage('Deploy staging') {
             agent {
                 docker {
                     image 'node:18-alpine'
@@ -102,16 +92,16 @@ pipeline {
             }
             steps {
                 sh '''
-                    echo "Installing Netlify CLI..."
                     npm install netlify-cli
-
-                    echo "Deploying to Staging..."
-                    node_modules/.bin/netlify deploy --auth=$NETLIFY_AUTH_TOKEN --site=$NETLIFY_SITE_ID --dir=build
+                    node_modules/.bin/netlify --version
+                    echo "Deploying to staging. Site ID: $NETLIFY_SITE_ID"
+                    node_modules/.bin/netlify status
+                    node_modules/.bin/netlify deploy --dir=build
                 '''
             }
         }
 
-        stage('Deploy to Production') {
+        stage('Deploy prod') {
             agent {
                 docker {
                     image 'node:18-alpine'
@@ -120,16 +110,16 @@ pipeline {
             }
             steps {
                 sh '''
-                    echo "Installing Netlify CLI..."
                     npm install netlify-cli
-
-                    echo "Deploying to Production..."
-                    node_modules/.bin/netlify deploy --auth=$NETLIFY_AUTH_TOKEN --site=$NETLIFY_SITE_ID --dir=build --prod
+                    node_modules/.bin/netlify --version
+                    echo "Deploying to production. Site ID: $NETLIFY_SITE_ID"
+                    node_modules/.bin/netlify status
+                    node_modules/.bin/netlify deploy --dir=build --prod
                 '''
             }
         }
 
-        stage('E2E Tests (Prod URL)') {
+        stage('Prod E2E') {
             agent {
                 docker {
                     image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
@@ -143,7 +133,6 @@ pipeline {
 
             steps {
                 sh '''
-                    echo "Running Playwright E2E tests on deployed site..."
                     npx playwright test --reporter=html
                 '''
             }
@@ -151,11 +140,13 @@ pipeline {
             post {
                 always {
                     publishHTML([
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: false,
                         reportDir: 'playwright-report',
                         reportFiles: 'index.html',
                         reportName: 'Playwright E2E',
-                        allowMissing: false,
-                        keepAll: true
+                        useWrapperFileDirectly: true
                     ])
                 }
             }
