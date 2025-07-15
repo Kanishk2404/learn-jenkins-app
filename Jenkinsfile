@@ -6,7 +6,17 @@ pipeline {
         NETLIFY_AUTH_TOKEN = credentials('netlify-token')
     }
 
+    options {
+        disableConcurrentBuilds()
+    }
+
     stages {
+
+        stage('Clean Workspace') {
+            steps {
+                deleteDir()
+            }
+        }
 
         stage('Build') {
             agent {
@@ -99,6 +109,16 @@ pipeline {
                     node_modules/.bin/netlify deploy --dir=build
                 '''
             }
+        }
+
+        stage ('Approve staging') {
+            steps {
+                 timeout(1) {
+                         input message: 'approval for pipeline', ok: 'yes, I am sure'
+
+                    }               
+            }
+
         }
 
         stage('Deploy prod') {
