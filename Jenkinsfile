@@ -8,6 +8,11 @@ pipeline {
 
     stages {
 
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
 
         stage('Build') {
             agent {
@@ -18,19 +23,21 @@ pipeline {
             }
             steps {
                 sh '''
-                    ls -la
+                    echo "Node version:"
                     node --version
+                    echo "NPM version:"
                     npm --version
+                    echo "Installing dependencies..."
                     npm ci
+                    echo "Running build..."
                     npm run build
-                    ls -la
                 '''
             }
         }
 
         stage('Tests') {
             parallel {
-                stage('Unit tests') {
+                stage('Unit Tests') {
                     agent {
                         docker {
                             image 'node:18-alpine'
@@ -39,18 +46,18 @@ pipeline {
                     }
                     steps {
                         sh '''
-                            npm ci
+                            echo "Running unit tests..."
                             npm test
                         '''
                     }
                     post {
                         always {
-                            junit 'jest-results/junit.xml'
+                            junit 'jest-results/junit.xml' // Optional: depends if using jest-junit reporter
                         }
                     }
                 }
 
-                stage('E2E') {
+                stage('E2E Tests (Local)') {
                     agent {
                         docker {
                             image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
@@ -59,22 +66,34 @@ pipeline {
                     }
                     steps {
                         sh '''
+                            echo "Installing HTTP server..."
                             npm install serve
+                            echo "Starting local server..."
                             node_modules/.bin/serve -s build &
+
+                            echo "Waiting for server..."
                             sleep 10
-                            npx playwright test  --reporter=html
+
+                            echo "Running Playwright tests..."
+                            npx playwright test --reporter=html
                         '''
                     }
                     post {
                         always {
-                            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Playwright Local', reportTitles: '', useWrapperFileDirectly: true])
+                            publishHTML([
+                                reportDir: 'playwright-report',
+                                reportFiles: 'index.html',
+                                reportName: 'Playwright Local',
+                                allowMissing: false,
+                                keepAll: true
+                            ])
                         }
                     }
                 }
             }
         }
 
-        stage('Deploy staging') {
+        stage('Deploy to Staging') {
             agent {
                 docker {
                     image 'node:18-alpine'
@@ -83,16 +102,16 @@ pipeline {
             }
             steps {
                 sh '''
+                    echo "Installing Netlify CLI..."
                     npm install netlify-cli
-                    node_modules/.bin/netlify --version
-                    echo "Deploying to staging. Site ID: $NETLIFY_SITE_ID"
-                    node_modules/.bin/netlify status
-                    node_modules/.bin/netlify deploy --dir=build
+
+                    echo "Deploying to Staging..."
+                    node_modules/.bin/netlify deploy --auth=$NETLIFY_AUTH_TOKEN --site=$NETLIFY_SITE_ID --dir=build
                 '''
             }
         }
 
-        stage('Deploy prod') {
+        stage('Deploy to Production') {
             agent {
                 docker {
                     image 'node:18-alpine'
@@ -101,33 +120,43 @@ pipeline {
             }
             steps {
                 sh '''
+                    echo "Installing Netlify CLI..."
                     npm install netlify-cli
-                    node_modules/.bin/netlify --version
-                    echo "Deploying to production. Site ID: $NETLIFY_SITE_ID"
-                    node_modules/.bin/netlify status
-                    node_modules/.bin/netlify deploy --dir=build --prod
+
+                    echo "Deploying to Production..."
+                    node_modules/.bin/netlify deploy --auth=$NETLIFY_AUTH_TOKEN --site=$NETLIFY_SITE_ID --dir=build --prod
                 '''
             }
         }
 
-        stage('Prod E2E') {
+        stage('E2E Tests (Prod URL)') {
             agent {
                 docker {
                     image 'mcr.microsoft.com/playwright:v1.39.0-jammy'
                     reuseNode true
                 }
             }
+
             environment {
-                CI_ENVIRONMENT_URL = 'gregarious-dango-f714f1.netlify.app'
+                CI_ENVIRONMENT_URL = 'https://gregarious-dango-f714f1.netlify.app'
             }
+
             steps {
                 sh '''
-                    npx playwright test  --reporter=html
+                    echo "Running Playwright E2E tests on deployed site..."
+                    npx playwright test --reporter=html
                 '''
             }
+
             post {
                 always {
-                    publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'playwright-report', reportFiles: 'index.html', reportName: 'Playwright E2E', reportTitles: '', useWrapperFileDirectly: true])
+                    publishHTML([
+                        reportDir: 'playwright-report',
+                        reportFiles: 'index.html',
+                        reportName: 'Playwright E2E',
+                        allowMissing: false,
+                        keepAll: true
+                    ])
                 }
             }
         }
