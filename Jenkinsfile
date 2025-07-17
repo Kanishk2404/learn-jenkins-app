@@ -2,8 +2,13 @@ pipeline {
     agent any
 
     environment {
-        NETLIFY_SITE_ID = '9fd3d771-4f1c-4cb6-bb4a-24baed856e06'
-        NETLIFY_AUTH_TOKEN = credentials('netlify-token')
+        // Replace with your actual Netlify site ID
+        NETLIFY_SITE_ID       = '9fd3d771-4f1c-4cb6-bb4a-24baed856e06'
+        NETLIFY_AUTH_TOKEN    = credentials('netlify-token')
+        // Set staging/prod URLs per your Netlify site
+        STAGING_BASE_URL      = '' // Will be set after staging deploy
+        PROD_BASE_URL         = 'https://gregarious-dango-f714f1.netlify.app'
+        REACT_APP_VERSION     = "1.0.$BUILD_ID"
     }
 
     options {
@@ -11,13 +16,6 @@ pipeline {
     }
 
     stages {
-
-        // stage('Clean Workspace') {
-        //     steps {
-        //         deleteDir()
-        //     }
-        // }
-
         stage('Build') {
             agent {
                 docker {
@@ -46,11 +44,8 @@ pipeline {
                             reuseNode true
                         }
                     }
-
                     steps {
-                        sh '''
-                            npm test
-                        '''
+                        sh 'npm test'
                     }
                     post {
                         always {
@@ -66,7 +61,6 @@ pipeline {
                             reuseNode true
                         }
                     }
-
                     steps {
                         sh '''
                             npm install serve
@@ -75,7 +69,6 @@ pipeline {
                             npx playwright test --reporter=html
                         '''
                     }
-
                     post {
                         always {
                             publishHTML([
@@ -111,14 +104,12 @@ pipeline {
             }
         }
 
-        stage ('Approve staging') {
+        stage('Approve staging') {
             steps {
-                 timeout(1) {
-                         input message: 'approval for pipeline', ok: 'yes, I am sure'
-
-                    }               
+                timeout(time: 1, unit: 'HOURS') {
+                    input message: 'Approval for deployment to production?', ok: 'Deploy'
+                }
             }
-
         }
 
         stage('Deploy prod') {
@@ -146,17 +137,14 @@ pipeline {
                     reuseNode true
                 }
             }
-
             environment {
                 CI_ENVIRONMENT_URL = 'https://gregarious-dango-f714f1.netlify.app'
             }
-
             steps {
                 sh '''
                     npx playwright test --reporter=html
                 '''
             }
-
             post {
                 always {
                     publishHTML([
