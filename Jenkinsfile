@@ -10,16 +10,19 @@ pipeline {
         PROD_BASE_URL         = 'https://gregarious-dango-f714f1.netlify.app'
         REACT_APP_VERSION     = "1.0.$BUILD_ID"
     }
-    stage('Docker'){
-        steps{
-            sh 'docker build -t my-playwright .'
-        }
-    }
+    
     options {
         disableConcurrentBuilds()
     }
 
     stages {
+        
+        stage('Docker'){
+        steps{
+            sh 'docker build -t my-playwright .'
+        }
+    }
+
         stage('Build') {
             agent {
                 docker {
